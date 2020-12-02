@@ -26,6 +26,18 @@ async function fetchAndDraw() {
     }
 }
 
+// Helper to traverse JSON tree and find a value (assumes node.data holds numeric or string)
+function treeContains(node, value) {
+    if (!node) return false;
+    try {
+        if (parseInt(node.data, 10) === value) return true;
+    } catch (e) { /* ignore parse error */ }
+    if (node.left && treeContains(node.left, value)) return true;
+    if (node.right && treeContains(node.right, value)) return true;
+    return false;
+}
+
+// --- Drawing code (unchanged except for location) ---------------------------
 function drawNode(node, x, y, offset) {
     if (!node) return;
     
