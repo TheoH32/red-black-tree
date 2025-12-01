@@ -14,9 +14,11 @@ public class RedBlackTree {
 
     public void insert(int data) {
         Node newNode = new Node(data);
-
-        bstInsert(root, newNode);
+        root = bstInsert(root, newNode);
         fixViolations(newNode);
+
+        // Update visuals after ops
+        TreeSerializer.saveTreeToJson(root, "visualization/tree_data.json");
     }
 
     // BST Insert: Insert the new node like in a standard BST.
@@ -110,6 +112,64 @@ public class RedBlackTree {
         // FINAL STEP: The Root must always be BLACK
         root.isRed = false;
 
+    }
+
+    private void leftRotate(Node pivot) {
+        // The right child becomes the new parent of the subtree
+        Node newParent = pivot.right;         
+
+        // Move newParent's left subtree to pivot's right
+        pivot.right = newParent.left;         
+        if (newParent.left != null) {
+            newParent.left.parent = pivot;    
+        }
+
+        // Link newParent to pivot's old parent
+        newParent.parent = pivot.parent;      
+        if (pivot.parent == null) {
+            // Pivot was root — update root
+            this.root = newParent;
+        } else if (pivot == pivot.parent.left) {
+            pivot.parent.left = newParent;    
+        } else {
+            pivot.parent.right = newParent;   
+        }
+
+        // Finish rotation: pivot becomes left child of newParent
+        newParent.left = pivot;               
+        pivot.parent = newParent;
+    }
+
+
+    private void rightRotate(Node pivot) {
+        // The left child becomes the new parent of the subtree
+        Node newParent = pivot.left;          
+
+        // Move newParent's right subtree to pivot's left
+        pivot.left = newParent.right;         
+        if (newParent.right != null) {
+            newParent.right.parent = pivot;   
+        }
+
+        // Link newParent to pivot's old parent
+        newParent.parent = pivot.parent;      
+        if (pivot.parent == null) {
+            // Pivot was root — update root
+            this.root = newParent;
+        } else if (pivot == pivot.parent.right) {
+            pivot.parent.right = newParent;   
+        } else {
+            pivot.parent.left = newParent;    
+        }
+
+        // Finish rotation: pivot becomes right child of newParent
+        newParent.right = pivot;              
+        pivot.parent = newParent;
+    }
+
+    
+    public void delete(int data) {
+        System.out.println("Delete not implemented yet!");
     }
  
 }
