@@ -1,10 +1,10 @@
-package src.main.java.com.rbtree;
+package com.rbtree;
 
 // SOURCE: https://www.geeksforgeeks.org/dsa/introduction-to-red-black-tree/
 // ALL COMMENTS ARE PASTED AND SOURCED FROM HERE ^^^^^^^^^^^^
 
 public class RedBlackTree {
-    private Node root;
+    Node root;
 
     // Insertion Steps
     // BST Insert: Insert the new node like in a standard BST.
@@ -85,7 +85,7 @@ public class RedBlackTree {
             // --- SIDE B: Parent is a RIGHT child of Grandparent ---
             // This is the exact mirror image of Side A
             else {
-                u = newNode.parent.parent.left; // Uncle is left child
+                uncle = newNode.parent.parent.left; // Uncle is left child
 
                 // Case 1: Uncle is RED
                 if (uncle != null && uncle.isRed) {
@@ -170,6 +170,20 @@ public class RedBlackTree {
     
     public void delete(int data) {
         System.out.println("Delete not implemented yet!");
+    }
+
+    public Node search(int key) {
+        return searchRecursive(root, key);
+    }
+
+    private Node searchRecursive(Node current, int key) {
+        if (current == null || current.data == key) {
+            return current;
+        }
+        if (key < current.data) {
+            return searchRecursive(current.left, key);
+        }
+        return searchRecursive(current.right, key);
     }
  
 }

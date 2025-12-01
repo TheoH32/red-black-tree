@@ -1,4 +1,4 @@
-package src.main.java.com.rbtree;
+package com.rbtree;
 
 import java.util.Scanner;
 
