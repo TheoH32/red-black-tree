@@ -26,7 +26,19 @@
         </div>
 
         <p>Open this page at <a href="/" id="serverLink">http://localhost:8080/</a>.</p>
+
+        <!-- Operation log box placed directly below the "Open this page at..." paragraph -->
+        <div class="log-controls">
+            <div class="log-header">
+                <strong>Operation Log</strong>
+                <button id="clearLogBtn" class="muted small">Clear Logs</button>
+            </div>
+            <div id="logBox" class="log-box" aria-live="polite" aria-atomic="false">
+                <div id="logList" class="log-list"></div>
+            </div>
+        </div>
     </div>
+
     <canvas id="treeCanvas" width="1200" height="800"></canvas>
     <script src="visualizer.js"></script>
 </body>
