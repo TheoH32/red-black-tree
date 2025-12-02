@@ -4,42 +4,67 @@
     <meta charset="UTF-8">
     <title>RB Tree Visualizer</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="controls">
         <h1>Red-Black Tree Visualization</h1>
 
         <div class="control-row">
-            <input id="insertInput" type="number" placeholder="Enter integer to insert" />
+            <input id="insertInput" type="number" placeholder="Enter integer" />
             <button id="insertBtn">Insert</button>
-
-            <input id="deleteInput" type="number" placeholder="Enter integer to delete" />
             <button id="deleteBtn">Delete</button>
-
             <button id="deleteAllBtn">Delete All</button>
         </div>
 
         <div class="control-row">
-            <input id="searchInput" type="number" placeholder="Search for integer" />
+            <input id="searchInput" type="number" placeholder="Search integer" />
             <button id="searchBtn">Search</button>
-            <button id="clearSearchBtn" class="muted">Clear</button>
+            <button id="perfBtn" style="background-color: #6610f2;">📊 Run Performance Analysis</button>
         </div>
 
-        <p>Open this page at <a href="/" id="serverLink">http://localhost:8080/</a>.</p>
-
-        <!-- Operation log box placed directly below the "Open this page at..." paragraph -->
         <div class="log-controls">
             <div class="log-header">
                 <strong>Operation Log</strong>
-                <button id="clearLogBtn" class="muted small">Clear Logs</button>
+                <button id="clearLogBtn" class="muted small">Clear</button>
             </div>
-            <div id="logBox" class="log-box" aria-live="polite" aria-atomic="false">
+            <div id="logBox" class="log-box">
                 <div id="logList" class="log-list"></div>
             </div>
         </div>
     </div>
 
     <canvas id="treeCanvas" width="1200" height="800"></canvas>
+
+    <div id="perfModal" class="modal" aria-hidden="true">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2>Time Complexity Analysis (O-Notation)</h2>
+                <button id="closePerfBtn" class="small muted">Close</button>
+            </header>
+            <div class="perf-columns">
+                <div class="perf-left" style="overflow-y: auto; max-height: 500px;">
+                    <div style="margin-bottom: 20px;">
+                        <canvas id="rbtChart"></canvas>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <canvas id="avlChart"></canvas>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <canvas id="bstChart"></canvas>
+                    </div>
+                </div>
+                    <canvas id="perfChart"></canvas> </div>
+                <div class="perf-right">
+                    <div id="reportText" class="report-text">
+                        Click "Run Benchmark" to test Insert/Search speeds for N=100, 500, 1000 nodes.
+                    </div>
+                    <button id="runBenchBtn" class="small">▶ Start Benchmark</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="visualizer.js"></script>
 </body>
 </html>
