@@ -8,8 +8,20 @@
 <body>
     <div class="controls">
         <h1>Red-Black Tree Visualization</h1>
-        <p>Run the Java Main class to insert nodes, then click Refresh here.</p>
-        <button onclick="fetchAndDraw()">Refresh Tree</button>
+
+        <div>
+            <input id="insertInput" type="number" placeholder="Enter integer to insert" />
+            <button id="insertBtn">Insert</button>
+
+            <input id="deleteInput" type="number" placeholder="Enter integer to delete" />
+            <button id="deleteBtn">Delete</button>
+
+            <button id="deleteAllBtn">Delete All</button>
+
+            <button id="clearBtn">Clear</button>
+            <button id="refreshBtn">Refresh Tree</button>
+        </div>
+        <p>Open this page at <a href="/" id="serverLink">http://localhost:8080/</a>.</p>
     </div>
     <canvas id="treeCanvas" width="1200" height="800"></canvas>
     <script src="visualizer.js"></script>

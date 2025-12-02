@@ -1,11 +1,56 @@
 const canvas = document.getElementById('treeCanvas');
 const ctx = canvas.getContext('2d');
 
+document.getElementById('insertBtn').addEventListener('click', () => {
+    const val = document.getElementById('insertInput').value;
+    if (val === '') return;
+    fetch('/insert?value=' + encodeURIComponent(val), { method: 'POST' })
+        .then(res => {
+            if (!res.ok) return Promise.reject('Insert failed: ' + res.status);
+            return res.json();
+        })
+        .then(() => fetchAndDraw())
+        .catch(err => console.error("Insert failed:", err));
+});
+
+document.getElementById('deleteBtn').addEventListener('click', () => {
+    const val = document.getElementById('deleteInput').value;
+    if (val === '') return;
+    fetch('/delete?value=' + encodeURIComponent(val), { method: 'POST' })
+        .then(res => {
+            if (!res.ok) return Promise.reject('Delete failed: ' + res.status);
+            return res.json();
+        })
+        .then(() => fetchAndDraw())
+        .catch(err => console.error("Delete failed:", err));
+});
+
+document.getElementById('deleteAllBtn').addEventListener('click', () => {
+    // Delete All -> reuse /clear endpoint
+    fetch('/clear', { method: 'POST' })
+        .then(res => {
+            if (!res.ok) return Promise.reject('Delete All failed: ' + res.status);
+            return res.text();
+        })
+        .then(() => fetchAndDraw())
+        .catch(err => console.error("Delete All failed:", err));
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+    fetch('/clear', { method: 'POST' })
+        .then(() => fetchAndDraw())
+        .catch(err => console.error("Clear failed:", err));
+});
+
+document.getElementById('refreshBtn').addEventListener('click', fetchAndDraw);
+
 function fetchAndDraw() {
-    // Add a timestamp to prevent browser caching of the JSON file
-    fetch('tree_data.json?t=' + new Date().getTime())
-        .then(res => res.json())
-        .then(data => {
+    // Request current tree JSON from server
+    fetch('/tree.json?t=' + new Date().getTime())
+        .then(res => res.text())
+        .then(text => {
+            let data = null;
+            try { data = JSON.parse(text); } catch (e) { /* JSON.parse(null) -> null; other errors will be caught */ }
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (data) drawNode(data, canvas.width / 2, 50, canvas.width / 4);
         })
