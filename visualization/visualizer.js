@@ -268,8 +268,8 @@ document.getElementById('runBenchBtn').addEventListener('click', async () => {
     perfChart.data.datasets.forEach(ds => ds.data = []);
     perfChart.update();
 
-    // sample sizes - small and fast but still illustrative
-    const testSizes = [100, 500, 1000, 2500, 5000];
+    // sample sizes - gradual increase with less variety for smoother graph
+    const testSizes = [100, 200, 300, 400, 500, 750, 1000, 1500, 2000, 2500];
 
     let baselineTime = null; // avg per-op for first sample, used for scaling references
 

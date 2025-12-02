@@ -169,9 +169,14 @@ public class WebServer {
     class NodesHandler implements HttpHandler {
         public void handle(HttpExchange t) throws IOException {
              // Return a list of all nodes (for the Delete All button)
-             // Using a simple workaround since we don't have a getNodes() in RBT here
-             // Ideally you'd add a method to RedBlackTree.java to return a List<Integer>
-             sendJson(t, 200, "[]"); 
+             java.util.List<Integer> nodes = tree.getAllValues();
+             StringBuilder json = new StringBuilder("[");
+             for (int i = 0; i < nodes.size(); i++) {
+                 if (i > 0) json.append(",");
+                 json.append(nodes.get(i));
+             }
+             json.append("]");
+             sendJson(t, 200, json.toString());
         }
     }
 
