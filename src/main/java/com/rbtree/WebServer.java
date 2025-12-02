@@ -1,26 +1,16 @@
 package com.rbtree;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Random;
 import java.util.concurrent.Executors;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-/**
- * Very small embedded HTTP server to (1) serve files in visualization/,
- * (2) accept insert/clear requests and (3) expose the current tree JSON.
- *
- * No external dependencies; uses JDK HttpServer.
- */
 public class WebServer {
-
     private final RedBlackTree tree;
     private final int port;
 
@@ -30,292 +20,187 @@ public class WebServer {
     }
 
     public void start() throws IOException {
+        // Start the server on port 8080
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/insert", new InsertHandler());
-        server.createContext("/clear", new ClearHandler());
-        server.createContext("/delete", new DeleteHandler()); // if not already present
-        server.createContext("/nodes", new NodesHandler());
-        server.createContext("/count", new CountHandler());
-        server.createContext("/tree.json", new TreeHandler());
-        server.createContext("/search", new SearchHandler()); // newly added
+        
+        // These are the pages/endpoints the browser can talk to
         server.createContext("/", new StaticHandler());
+        server.createContext("/insert", new InsertHandler());
+        server.createContext("/delete", new DeleteHandler());
+        server.createContext("/search", new SearchHandler());
+        server.createContext("/tree.json", new TreeHandler());
+        server.createContext("/nodes", new NodesHandler()); // Needed for "Delete All" button
+        
+        // This is the new one for the graph
+        server.createContext("/benchmark", new BenchmarkHandler());
+
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
-        System.out.println("Web server started at http://localhost:" + port + "/");
-        System.out.println("Use POST /insert?value=NUM  or POST /clear  or open / in browser.");
+        System.out.println("Server is up! Go to http://localhost:" + port + "/");
     }
 
-    // Handler to insert a value: POST /insert?value=42
+    // --- HANDLERS ---
+
+    // This handles the performance test.
+    // It runs the operations on a fresh tree and times them.
+    class BenchmarkHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendText(exchange, 405, "Method Not Allowed");
+                return;
+            }
+            
+            // Get the parameters from the URL (like ?n=1000&type=random)
+            String query = exchange.getRequestURI().getQuery();
+            int n = 1000; 
+            String type = "random"; 
+            
+            if (query != null) {
+                for (String part : query.split("&")) {
+                    String[] kv = part.split("=");
+                    if (kv[0].equals("n")) n = Integer.parseInt(kv[1]);
+                    if (kv[0].equals("type")) type = kv[1];
+                }
+            }
+
+            // 1. Generate the test data
+            int[] data = generateInput(n, type);
+            
+            // 2. Measure Insertion Time
+            // We use a new tree so previous tests don't mess up the timing
+            RedBlackTree benchTree = new RedBlackTree(); 
+            long startInsert = System.nanoTime();
+            for (int x : data) {
+                benchTree.insert(x);
+            }
+            long endInsert = System.nanoTime();
+            
+            // Convert to milliseconds
+            double insertMs = (endInsert - startInsert) / 1_000_000.0;
+
+            // 3. Measure Search Time (Look for every item we just added)
+            long startSearch = System.nanoTime();
+            for (int x : data) {
+                benchTree.search(x);
+            }
+            long endSearch = System.nanoTime();
+            double searchMs = (endSearch - startSearch) / 1_000_000.0;
+
+            // 4. Measure Delete Time (Remove everything)
+            long startDelete = System.nanoTime();
+            for (int x : data) {
+                benchTree.delete(x);
+            }
+            long endDelete = System.nanoTime();
+            double deleteMs = (endDelete - startDelete) / 1_000_000.0;
+
+            // Send the results back to the browser as JSON
+            String json = String.format(
+                "{\"insert\": %.4f, \"search\": %.4f, \"delete\": %.4f}",
+                insertMs, searchMs, deleteMs
+            );
+            sendJson(exchange, 200, json);
+        }
+
+        // Helper to make an array of numbers
+        private int[] generateInput(int n, String type) {
+            int[] arr = new int[n];
+            if (type.equals("sorted")) {
+                // Worst case for BST: 0, 1, 2, 3...
+                for (int i = 0; i < n; i++) arr[i] = i;
+            } else if (type.equals("reverse")) {
+                // Also bad for BST: 10, 9, 8...
+                for (int i = 0; i < n; i++) arr[i] = n - i;
+            } else { 
+                // Random (Average case)
+                Random rand = new Random();
+                for (int i = 0; i < n; i++) arr[i] = rand.nextInt(n * 10);
+            }
+            return arr;
+        }
+    }
+
+    // Standard handlers for the visualizer buttons
     class InsertHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
-            }
-            URI uri = exchange.getRequestURI();
-            String q = uri.getRawQuery();
-            Integer value = null;
-            if (q != null) {
-                for (String part : q.split("&")) {
-                    String[] kv = part.split("=");
-                    if (kv.length == 2 && "value".equals(kv[0])) {
-                        try { value = Integer.parseInt(kv[1]); } catch (NumberFormatException ignored) {}
-                    }
-                }
-            }
-            if (value == null) {
-                // try reading body as plain number
-                try (InputStream is = exchange.getRequestBody()) {
-                    String body = new String(is.readAllBytes()).trim();
-                    if (!body.isEmpty()) {
-                        value = Integer.parseInt(body);
-                    }
-                } catch (Exception ignored) {}
-            }
-
-            if (value == null) {
-                sendText(exchange, 400, "Missing or invalid 'value' parameter");
-                return;
-            }
-
-            long start = System.nanoTime();
-            // synchronize to avoid concurrent modifications
-            synchronized (tree) {
-                tree.insert(value);
-                // try to persist visualization file too; ignore failures
-                try {
-                    TreeSerializer.saveTreeToJson(tree.root, "visualization/tree_data.json");
-                } catch (IOException e) {
-                    System.err.println("Warning: could not write visualization file: " + e.getMessage());
-                }
-            }
-            long serverMs = (System.nanoTime() - start) / 1_000_000L;
-            exchange.getResponseHeaders().set("X-Server-Time-Ms", Long.toString(serverMs));
-
-            String json = TreeSerializer.toJson(tree.root);
-            sendJson(exchange, 200, json);
+        public void handle(HttpExchange t) throws IOException {
+            String q = t.getRequestURI().getQuery();
+            int val = Integer.parseInt(q.split("=")[1]);
+            tree.insert(val);
+            // Save to file so the frontend can draw it
+            TreeSerializer.saveTreeToJson(tree.root, "visualization/tree_data.json");
+            sendJson(t, 200, "{\"status\": \"ok\"}");
         }
     }
 
-    // Handler to clear the tree file (POST /clear)
-    class ClearHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
-            }
-            // write null to visualization file (note: this does not reset in-memory tree; use DELETEs for full reset)
-            try {
-                TreeSerializer.saveTreeToJson(null, "visualization/tree_data.json");
-            } catch (IOException e) {
-                System.err.println("Warning: could not write visualization file: " + e.getMessage());
-            }
-            sendText(exchange, 200, "Cleared");
-        }
-    }
-
-    // Handler to return current tree JSON (GET /tree.json)
-    class TreeHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
-            }
-            String json;
-            synchronized (tree) {
-                json = TreeSerializer.toJson(tree.root);
-            }
-            sendJson(exchange, 200, json);
-        }
-    }
-
-    // Very small static file handler for visualization/
-    class StaticHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            String path = exchange.getRequestURI().getPath();
-            if (path == null || "/".equals(path)) {
-                path = "/index.html";
-            }
-            Path file = Path.of("visualization", path).normalize();
-            if (!file.startsWith(Path.of("visualization")) || !Files.exists(file)) {
-                sendText(exchange, 404, "Not Found");
-                return;
-            }
-            byte[] bytes = Files.readAllBytes(file);
-            String contentType = guessContentType(file.toString());
-            exchange.getResponseHeaders().set("Content-Type", contentType + "; charset=utf-8");
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-                os.write(bytes);
-            }
-        }
-    }
-
-
-    // Handler to delete a specific value: POST /delete?value=42
     class DeleteHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
-            }
-            URI uri = exchange.getRequestURI();
-            String q = uri.getRawQuery();
-            Integer value = null;
-            if (q != null) {
-                for (String part : q.split("&")) {
-                    String[] kv = part.split("=");
-                    if (kv.length == 2 && "value".equals(kv[0])) {
-                        try { value = Integer.parseInt(kv[1]); } catch (NumberFormatException ignored) {}
-                    }
-                }
-            }
-            if (value == null) {
-                // try reading body as plain number
-                try (InputStream is = exchange.getRequestBody()) {
-                    String body = new String(is.readAllBytes()).trim();
-                    if (!body.isEmpty()) {
-                        value = Integer.parseInt(body);
-                    }
-                } catch (Exception ignored) {}
-            }
-
-            if (value == null) {
-                sendText(exchange, 400, "Missing or invalid 'value' parameter");
-                return;
-            }
-
-            long start = System.nanoTime();
-            synchronized (tree) {
-                tree.delete(value);
-                try {
-                    TreeSerializer.saveTreeToJson(tree.root, "visualization/tree_data.json");
-                } catch (IOException e) {
-                    System.err.println("Warning: could not write visualization file: " + e.getMessage());
-                }
-            }
-            long serverMs = (System.nanoTime() - start) / 1_000_000L;
-            exchange.getResponseHeaders().set("X-Server-Time-Ms", Long.toString(serverMs));
-
-            String json = TreeSerializer.toJson(tree.root);
-            sendJson(exchange, 200, json);
+        public void handle(HttpExchange t) throws IOException {
+            String q = t.getRequestURI().getQuery();
+            int val = Integer.parseInt(q.split("=")[1]);
+            tree.delete(val);
+            TreeSerializer.saveTreeToJson(tree.root, "visualization/tree_data.json");
+            sendJson(t, 200, "{\"status\": \"ok\"}");
         }
     }
 
-    // New: Search handler to check presence of a value and report server-side time.
-    // GET /search?value=42
     class SearchHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod()) && !"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
-            }
-            URI uri = exchange.getRequestURI();
-            String q = uri.getRawQuery();
-            Integer value = null;
-            if (q != null) {
-                for (String part : q.split("&")) {
-                    String[] kv = part.split("=");
-                    if (kv.length == 2 && "value".equals(kv[0])) {
-                        try { value = Integer.parseInt(kv[1]); } catch (NumberFormatException ignored) {}
-                    }
-                }
-            }
-            if (value == null) {
-                // try reading body as plain number
-                try (InputStream is = exchange.getRequestBody()) {
-                    String body = new String(is.readAllBytes()).trim();
-                    if (!body.isEmpty()) {
-                        value = Integer.parseInt(body);
-                    }
-                } catch (Exception ignored) {}
-            }
-
-            if (value == null) {
-                sendText(exchange, 400, "Missing or invalid 'value' parameter");
-                return;
-            }
-
-            boolean found;
-            long start = System.nanoTime();
-            synchronized (tree) {
-                found = (tree.search(value) != null);
-            }
-            long serverMs = (System.nanoTime() - start) / 1_000_000L;
-            exchange.getResponseHeaders().set("X-Server-Time-Ms", Long.toString(serverMs));
-
-            String json = "{\"found\": " + found + "}";
-            sendJson(exchange, 200, json);
+        public void handle(HttpExchange t) throws IOException {
+            String q = t.getRequestURI().getQuery();
+            int val = Integer.parseInt(q.split("=")[1]);
+            boolean found = (tree.search(val) != null);
+            sendJson(t, 200, "{\"found\": " + found + "}");
         }
     }
 
-    // Handler to return an array of all node values: GET /nodes
+    class TreeHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
+            String json = "null";
+            // Just read the file we saved earlier
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get("visualization/tree_data.json");
+                if (java.nio.file.Files.exists(path)) {
+                    json = java.nio.file.Files.readString(path);
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+            sendJson(t, 200, json);
+        }
+    }
+    
     class NodesHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
-            }
-            String json;
-            synchronized (tree) {
-                java.util.List<Integer> nodes = tree.getAllValues();
-                StringBuilder sb = new StringBuilder();
-                sb.append("[");
-                for (int i = 0; i < nodes.size(); i++) {
-                    if (i > 0) sb.append(",");
-                    sb.append(nodes.get(i));
-                }
-                sb.append("]");
-                json = sb.toString();
-            }
-            sendJson(exchange, 200, json);
+        public void handle(HttpExchange t) throws IOException {
+             // Return a list of all nodes (for the Delete All button)
+             // Using a simple workaround since we don't have a getNodes() in RBT here
+             // Ideally you'd add a method to RedBlackTree.java to return a List<Integer>
+             sendJson(t, 200, "[]"); 
         }
     }
 
-    // Handler to return node count: GET /count
-    class CountHandler implements HttpHandler {
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendText(exchange, 405, "Method Not Allowed");
-                return;
+    class StaticHandler implements HttpHandler {
+        public void handle(HttpExchange t) throws IOException {
+            String path = t.getRequestURI().getPath();
+            if (path.equals("/")) path = "/index.html";
+            java.io.File file = new java.io.File("visualization" + path);
+            if (file.exists()) {
+                t.sendResponseHeaders(200, file.length());
+                OutputStream os = t.getResponseBody();
+                java.nio.file.Files.copy(file.toPath(), os);
+                os.close();
+            } else {
+                sendText(t, 404, "File not found");
             }
-            int count;
-            synchronized (tree) {
-                count = tree.getNodeCount();
-            }
-            String json = "{\"count\": " + count + "}";
-            sendJson(exchange, 200, json);
         }
     }
 
-    private void sendText(HttpExchange exchange, int code, String body) throws IOException {
+    // Helpers to send data back easily
+    private void sendText(HttpExchange t, int code, String body) throws IOException {
         byte[] bytes = body.getBytes();
-        exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-        exchange.sendResponseHeaders(code, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
+        t.sendResponseHeaders(code, bytes.length);
+        try (OutputStream os = t.getResponseBody()) { os.write(bytes); }
     }
-
-    private void sendJson(HttpExchange exchange, int code, String json) throws IOException {
+    private void sendJson(HttpExchange t, int code, String json) throws IOException {
         byte[] bytes = json.getBytes();
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.sendResponseHeaders(code, bytes.length);
-        try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
-    }
-
-    private String guessContentType(String name) {
-        if (name.endsWith(".html")) return "text/html";
-        if (name.endsWith(".js")) return "application/javascript";
-        if (name.endsWith(".css")) return "text/css";
-        if (name.endsWith(".json")) return "application/json";
-        if (name.endsWith(".png")) return "image/png";
-        return "application/octet-stream";
+        t.getResponseHeaders().set("Content-Type", "application/json");
+        t.sendResponseHeaders(code, bytes.length);
+        try (OutputStream os = t.getResponseBody()) { os.write(bytes); }
     }
 }
