@@ -13,3 +13,9 @@
 3. **Open Browser and Test**
     Open your web browser and navigate to `http://localhost:8080/` to view the visualization.
     
+
+# HOW TO RUN TEST FIXTURE
+To run the unit tests, execute:
+```bash
+mvn test
+```

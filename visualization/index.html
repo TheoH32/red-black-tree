@@ -24,30 +24,30 @@
         </div>
     </div>
 
-
     <canvas id="treeCanvas" width="1200" height="800"></canvas>
 
     <div id="perfModal" class="modal" aria-hidden="true">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
             <header class="modal-header">
                 <h2>Time Complexity Analysis (O-Notation)</h2>
-                <button id="closePerfBtn" class="small muted">Close</button>
-            </header>
-            <div class="perf-columns">
-                <div class="perf-left" style="overflow-y: auto; max-height: 500px;">
-                    <div style="margin-bottom: 20px;">
-                        <canvas id="rbtChart"></canvas>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <canvas id="avlChart"></canvas>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <canvas id="bstChart"></canvas>
-                    </div>
-                </div>
-                    <canvas id="perfChart"></canvas> </div>
-                <div class="perf-right">
+                <div>
                     <button id="runBenchBtn" class="small">▶ Start Benchmark</button>
+                    <button id="closePerfBtn" class="small muted">Close</button>
+                </div>
+            </header>
+            
+            <div class="perf-graphs-container" style="flex: 1; overflow-y: auto; padding-right: 10px; margin-top: 20px;">
+                
+                <div class="chart-wrapper" style="height: 300px; margin-bottom: 40px;">
+                    <canvas id="insertChart"></canvas>
+                </div>
+
+                <div class="chart-wrapper" style="height: 300px; margin-bottom: 40px;">
+                    <canvas id="searchChart"></canvas>
+                </div>
+
+                <div class="chart-wrapper" style="height: 300px; margin-bottom: 20px;">
+                    <canvas id="deleteChart"></canvas>
                 </div>
             </div>
         </div>

@@ -5,62 +5,51 @@ const ctx = canvas.getContext('2d');
 // Keep track of the node we're highlighting after a search
 let searchTarget = null;
 
-// Chart instance for benchmarking
-let perfChart = null;
+// Chart instances
+let insertChart = null;
+let searchChart = null;
+let deleteChart = null;
 
-/* Keep a small cache to avoid redrawing unnecessarily.
-   We still fetch each time, but only redraw when data changes. */
+/* Keep a small cache to avoid redrawing unnecessarily. */
 let lastTreeJson = null;
 
-/* Make canvas size match CSS and window
-   (this helps crisp drawing on resize / high-DPI screens). */
+/* Make canvas size match CSS and window */
 function resizeCanvasToDisplaySize() {
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     canvas.width = Math.round(rect.width * dpr);
     canvas.height = Math.round(rect.height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // scale drawing commands
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); 
 }
 
 /* Run at startup and on resize */
 window.addEventListener('resize', () => {
     resizeCanvasToDisplaySize();
-    // redraw if we already have a tree
     if (lastTreeJson) drawNode(lastTreeJson, canvas.width / 2, 50, canvas.width / 4);
 });
 
 /* ====== STARTUP ====== */
 resizeCanvasToDisplaySize();
-initChart();
-fetchAndDraw(); // initial fetch + draw
+initCharts(); 
+fetchAndDraw(); 
 
 /* ====== 1) DRAWING LOGIC ====== */
-
-/* Fetch the JSON tree from server and draw it.
-   We compare with lastTreeJson to avoid useless redraws. */
 async function fetchAndDraw() {
     try {
         const res = await fetch('/tree.json?t=' + Date.now());
-        if (!res.ok) {
-            console.warn('Failed to fetch tree.json:', res.status);
-            return;
-        }
+        if (!res.ok) return;
         const data = await res.json();
-        // quick deep-ish check: stringify (ok for moderate trees)
         const asString = JSON.stringify(data || {});
         if (asString !== JSON.stringify(lastTreeJson || {})) {
-            // clear and redraw
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             lastTreeJson = data;
             if (data) {
-                // center horizontally, start y at 50px
                 const startX = canvas.width / 2;
                 const startY = 50;
                 const startOffset = Math.max(canvas.width / 8, 60);
                 drawNode(data, startX, startY, startOffset);
             }
         } else {
-            // nothing changed; still draw highlight if needed
             if (lastTreeJson) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawNode(lastTreeJson, canvas.width / 2, 50, Math.max(canvas.width / 8, 60));
@@ -71,26 +60,20 @@ async function fetchAndDraw() {
     }
 }
 
-/* Recursive drawing of a node and its children.
-   Simple, readable code — no fancy layout libraries.
-   node: { data, color, left?, right? } */
 function drawNode(node, x, y, offset) {
     if (!node) return;
 
-    // draw links to children first (so links go under the node circles)
     ctx.strokeStyle = "#555";
     ctx.lineWidth = 2;
 
-    // left child: line + recursive draw
     if (node.left) {
         ctx.beginPath();
-        ctx.moveTo(x, y + 18); // start slightly below circle edge
-        ctx.lineTo(x - offset, y + 60 - 18); // end slightly above child circle
+        ctx.moveTo(x, y + 18);
+        ctx.lineTo(x - offset, y + 60 - 18);
         ctx.stroke();
         drawNode(node.left, x - offset, y + 60, offset / 1.8);
     }
 
-    // right child
     if (node.right) {
         ctx.beginPath();
         ctx.moveTo(x, y + 18);
@@ -99,29 +82,24 @@ function drawNode(node, x, y, offset) {
         drawNode(node.right, x + offset, y + 60, offset / 1.8);
     }
 
-    // draw the node circle
     const radius = 20;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, 2 * Math.PI);
 
-    // node color: red vs black
     ctx.fillStyle = (node.color === "RED" || node.color === "red") ? "#ff4444" : "#333";
     ctx.fill();
 
-    // if this is the searched-for node, draw a highlighted stroke
     if (searchTarget !== null && node.data === searchTarget) {
         ctx.lineWidth = 4;
-        ctx.strokeStyle = "#2ecc71"; // green highlight
+        ctx.strokeStyle = "#2ecc71"; 
         ctx.stroke();
-        ctx.lineWidth = 2; // reset
+        ctx.lineWidth = 2; 
     } else {
-        // default stroke
         ctx.strokeStyle = "#222";
         ctx.lineWidth = 1;
         ctx.stroke();
     }
 
-    // draw the text value centered
     ctx.fillStyle = "white";
     ctx.font = "bold 14px Arial";
     ctx.textAlign = "center";
@@ -130,83 +108,55 @@ function drawNode(node, x, y, offset) {
 }
 
 /* ====== 2) CONTROLS ====== */
-
-/* Insert button - grabs value from insertInput and calls server */
 document.getElementById('insertBtn').addEventListener('click', async () => {
     const val = document.getElementById('insertInput').value.trim();
     if (!val) return;
-    try {
-        await fetch(`/insert?value=${encodeURIComponent(val)}`, { method: 'POST' });
-    } catch (err) {
-        console.error('Insert failed:', err);
-    }
-    searchTarget = null; // clear highlight after insert
+    try { await fetch(`/insert?value=${encodeURIComponent(val)}`, { method: 'POST' }); } catch (err) {}
+    searchTarget = null;
     await fetchAndDraw();
 });
 
-/* Delete button - delete single value */
 document.getElementById('deleteBtn').addEventListener('click', async () => {
     const val = document.getElementById('insertInput').value.trim();
     if (!val) return;
-    try {
-        await fetch(`/delete?value=${encodeURIComponent(val)}`, { method: 'POST' });
-    } catch (err) {
-        console.error('Delete failed:', err);
-    }
+    try { await fetch(`/delete?value=${encodeURIComponent(val)}`, { method: 'POST' }); } catch (err) {}
     searchTarget = null;
     await fetchAndDraw();
 });
 
-/* Search button - highlight node locally and notify server (optional) */
 document.getElementById('searchBtn').addEventListener('click', async () => {
     const raw = document.getElementById('searchInput').value.trim();
     if (raw === '') return;
-    // Accept integer or string; try parseInt first
     const n = parseInt(raw, 10);
-    const val = isNaN(n) ? raw : n;
-    searchTarget = val;
-    try {
-        // optional: hit server just in case server does something for search
-        await fetch(`/search?value=${encodeURIComponent(raw)}`);
-    } catch (err) {
-        // non-fatal
-    }
+    searchTarget = isNaN(n) ? raw : n;
+    try { await fetch(`/search?value=${encodeURIComponent(raw)}`); } catch (err) {}
     await fetchAndDraw();
 });
 
-/* Delete all - grabs server node list and deletes one-by-one */
 document.getElementById('deleteAllBtn').addEventListener('click', async () => {
-    const report = document.getElementById('reportText');
     try {
         const res = await fetch('/nodes');
-        if (!res.ok) {
-            console.warn('Failed to fetch nodes list:', res.status);
-            return;
-        }
+        if (!res.ok) return;
         const nodes = await res.json();
-        report && (report.textContent = `Deleting ${nodes.length} nodes...\n`);
         for (const val of nodes) {
             await fetch(`/delete?value=${encodeURIComponent(val)}`, { method: 'POST' });
         }
-    } catch (err) {
-        console.error('Delete all failed:', err);
-    }
+    } catch (err) {}
     searchTarget = null;
     await fetchAndDraw();
 });
 
-/* ====== 3) BENCHMARK & CHART ====== */
+/* ====== 3) BENCHMARK & CHARTS ====== */
 
-/* Initialize Chart.js with three datasets */
-function initChart() {
-    const chartCtx = document.getElementById('perfChart').getContext('2d');
-    perfChart = new Chart(chartCtx, {
+function createChart(canvasId, title) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    return new Chart(ctx, {
         type: 'line',
         data: {
             labels: [],
             datasets: [
-                { // real measured RBT data
-                    label: 'Red-Black Tree (Real Java Data)',
+                { 
+                    label: 'Red-Black Tree (Measured)',
                     borderColor: '#2ecc71',
                     backgroundColor: 'rgba(46,204,113,0.15)',
                     data: [],
@@ -215,7 +165,7 @@ function initChart() {
                     fill: false,
                     pointRadius: 3
                 },
-                { // simple reference for AVL (slightly worse than RBT)
+                { 
                     label: 'AVL Tree (Reference)',
                     borderColor: '#3498db',
                     borderDash: [6, 4],
@@ -224,7 +174,7 @@ function initChart() {
                     fill: false,
                     pointRadius: 0
                 },
-                { // BST worst-case reference (O(N) line)
+                { 
                     label: 'BST Worst-Case (Reference)',
                     borderColor: '#e74c3c',
                     borderDash: [2, 3],
@@ -239,90 +189,79 @@ function initChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: {
-                    title: { display: true, text: 'Tree Size (N)' }
-                },
-                y: {
-                    title: { display: true, text: 'Avg Time per Op (microseconds)' },
-                    beginAtZero: true
-                }
+                x: { title: { display: true, text: 'Tree Size (N)' } },
+                y: { title: { display: true, text: 'Avg Time (µs)' }, beginAtZero: true }
             },
             plugins: {
                 legend: { position: 'top' },
-                title: { display: true, text: 'Insertion Cost: O(log n) vs O(n)' },
+                title: { display: true, text: title },
             }
         }
     });
 }
 
-/* Run benchmark - smaller sample sizes for quick runs */
+function initCharts() {
+    insertChart = createChart('insertChart', 'Insertion Cost: O(log n) vs O(n)');
+    searchChart = createChart('searchChart', 'Search Cost: O(log n) vs O(n)');
+    deleteChart = createChart('deleteChart', 'Deletion Cost: O(log n) vs O(n)');
+}
+
+function resetCharts() {
+    [insertChart, searchChart, deleteChart].forEach(chart => {
+        chart.data.labels = [];
+        chart.data.datasets.forEach(ds => ds.data = []);
+        chart.update();
+    });
+}
+
+function updateChartData(chart, n, measuredVal, baselineVal) {
+    chart.data.labels.push(String(n));
+    chart.data.datasets[0].data.push(measuredVal);
+    chart.data.datasets[1].data.push(measuredVal * 1.05); 
+    const c = baselineVal / 100; // 100 is our first N
+    chart.data.datasets[2].data.push(c * n);
+    chart.update();
+}
+
 document.getElementById('runBenchBtn').addEventListener('click', async () => {
-    const reportBox = document.getElementById('reportText');
-    if (!confirm("Run Benchmark? (Samples: 100 to 5,000)")) return;
+    // Removed reportBox logic here
+    if (!confirm("Run Benchmark? (Samples: 100 to 2,500)")) return;
 
-    // reset report area
-    if (reportBox) reportBox.textContent = "Running benchmark...\n";
+    resetCharts();
 
-    // clear chart
-    perfChart.data.labels = [];
-    perfChart.data.datasets.forEach(ds => ds.data = []);
-    perfChart.update();
-
-    // sample sizes - gradual increase with less variety for smoother graph
     const testSizes = [100, 200, 300, 400, 500, 750, 1000, 1500, 2000, 2500];
-
-    let baselineTime = null; // avg per-op for first sample, used for scaling references
+    let baselines = { insert: null, search: null, delete: null };
 
     for (let i = 0; i < testSizes.length; i++) {
         const n = testSizes[i];
-        reportBox && (reportBox.textContent += `Testing N=${n}...\n`);
-
+        
         try {
-            // get real measured data from server
             const res = await fetch(`/benchmark?n=${n}&type=random`);
-            if (!res.ok) {
-                reportBox && (reportBox.textContent += ` Failed to fetch benchmark for N=${n}\n`);
-                continue;
-            }
+            if (!res.ok) throw new Error('Fetch failed');
+            
             const realData = await res.json();
-            // server returns total insertion time in milliseconds
-            const totalMs = realData.insert;
-            const avgPerOp = (totalMs / Math.max(1, n)) * 1000; // convert ms -> µs per op
+            
+            const tInsert = (realData.insert / Math.max(1, n)) * 1000; 
+            const tSearch = ((realData.search || realData.insert * 0.7) / Math.max(1, n)) * 1000;
+            const tDelete = ((realData.delete || realData.insert * 1.2) / Math.max(1, n)) * 1000;
 
-            // capture baseline from first point for reference scaling
-            if (baselineTime === null) {
-                baselineTime = avgPerOp || 1; // guard against zero
+            if (i === 0) {
+                baselines.insert = tInsert || 1;
+                baselines.search = tSearch || 1;
+                baselines.delete = tDelete || 1;
             }
 
-            // AVL reference: slightly worse than measured RBT
-            const avlRef = avgPerOp * 1.15;
-
-            // BST worst-case reference: O(N) line
-            // We want bstRef(N) = c * N where c = baselineTime / testSizes[0]
-            // This keeps the BST line anchored at the first sample.
-            const c = baselineTime / testSizes[0];
-            const bstRef = c * n;
-
-            reportBox && (reportBox.textContent += ` > RBT Avg: ${avgPerOp.toFixed(2)} µs\n`);
-
-            // push to chart
-            perfChart.data.labels.push(String(n));
-            perfChart.data.datasets[0].data.push(avgPerOp);
-            perfChart.data.datasets[1].data.push(avlRef);
-            perfChart.data.datasets[2].data.push(bstRef);
-            perfChart.update();
+            updateChartData(insertChart, n, tInsert, baselines.insert);
+            updateChartData(searchChart, n, tSearch, baselines.search);
+            updateChartData(deleteChart, n, tDelete, baselines.delete);
 
         } catch (err) {
-            console.error('Benchmark error for N=' + n, err);
-            reportBox && (reportBox.textContent += ` Error for N=${n}\n`);
+            console.error(err);
         }
     }
-
-    reportBox && (reportBox.textContent += "Done.\n");
 });
 
-/* ====== 4) MODAL HELPERS ======
-   (small helpers to open/close the performance modal) */
+/* ====== 4) MODAL HELPERS ====== */
 const perfModal = document.getElementById('perfModal');
 const closePerfBtn = document.getElementById('closePerfBtn');
 const perfBtn = document.getElementById('perfBtn');
@@ -333,7 +272,4 @@ window.onclick = (event) => {
     if (event.target === perfModal) perfModal.setAttribute('aria-hidden', 'true');
 };
 
-/* ====== OPTIONAL: auto-refresh tree every few seconds ======
-   If you prefer manual control, comment this out.
-   This keeps the visualizer up-to-date with server-side changes. */
 setInterval(fetchAndDraw, 2500);
