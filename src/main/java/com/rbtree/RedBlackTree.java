@@ -370,6 +370,7 @@ public class RedBlackTree {
         return out;
     }
 
+    // preorder traversal to collect values
     private void collectValues(Node node, List<Integer> out) {
         if (node == null) return;
         out.add(node.data);
