@@ -214,155 +214,148 @@ public class RedBlackTree {
     // If the node to be deleted has two children, then replace the node with its in-order successor, which is the leftmost node in the right subtree. Then delete the in-order successor node as if it has at most one child.
     // After the node is deleted, the red-black properties might be violated. To restore these properties, some color changes and rotations are performed on the nodes in the tree. The changes are similar to those performed during insertion, but with different conditions.
     // The deletion operation in a red-black tree takes O(log n) time on average, making it a good choice for searching and deleting elements in large data sets.
-    private void deleteNode(Node node) {
-        Node x, y; // x is the node that moves up, y is the node being removed/moved
+    // ...existing code...
 
-        // 1. Determine which node 'y' to physically remove or move
-        if (node.left == null || node.right == null) {
-            y = node; // Node has 0 or 1 child
+    /** Helper: replace subtree rooted at u with subtree rooted at v */
+    private void rbTransplant(Node u, Node v) {
+        if (u.parent == null) {
+            this.root = v;
+        } else if (u == u.parent.left) {
+            u.parent.left = v;
         } else {
-            y = getSuccessor(node.right); // Node has 2 children, find successor
+            u.parent.right = v;
         }
+        if (v != null) v.parent = u.parent;
+    }
 
-        // 2. Determine 'x', the child of 'y' (can be null)
-        if (y.left != null) {
-            x = y.left;
+    /** Helper: return minimum node in subtree rooted at x */
+    private Node treeMinimum(Node x) {
+        while (x.left != null) x = x.left;
+        return x;
+    }
+
+    /** CLRS-style RB-DELETE adapted for nullable children (no NIL sentinel) */
+    private void deleteNode(Node z) {
+        if (z == null) return;
+
+        Node y = z;
+        boolean yOriginalIsRed = y.isRed;
+        Node x;          // node that moved into y's original position (may be null)
+        Node xParent = null; // parent of x when x is null
+
+        if (z.left == null) {
+            x = z.right;
+            xParent = z.parent;
+            rbTransplant(z, z.right);
+        } else if (z.right == null) {
+            x = z.left;
+            xParent = z.parent;
+            rbTransplant(z, z.left);
         } else {
+            // z has two children: replace z with its successor y = min(z.right)
+            y = treeMinimum(z.right);
+            yOriginalIsRed = y.isRed;
             x = y.right;
-        }
-
-        // 3. Link x to y's parent
-        if (x != null) {
-            x.parent = y.parent;
-        }
-
-        if (y.parent == null) {
-            this.root = x; // y was root
-        } else if (y == y.parent.left) {
-            y.parent.left = x;
-        } else {
-            y.parent.right = x;
-        }
-
-        // 4. If we moved a successor (case with 2 children), copy data to original node
-        if (y != node) {
-            node.data = y.data;
-        }
-
-        // 5. If the removed/moved node 'y' was BLACK, we lost a black height. Fix it.
-        if (!y.isRed) {
-            // Handle the tricky case where x is null (leaf removal)
-            // We create a temporary dummy node if x is null to perform the fix
-            if (x == null) {
-                // If tree became empty, just return
-                if (root == null) return;
-                // Temporarily pretend a null node is double black? 
-                // Actually, standard algorithms pass 'x' as null, but we need the parent.
-                // Easier approach for this specific structure: Fix logic handles null x usually, 
-                // but we need to know x's parent. 
-                // Let's call fixDelete with the parent and explicit instructions, 
-                // OR use a sentinel. Since we don't use sentinels:
-                fixDelete(x, y.parent); 
+            if (y.parent == z) {
+                // x's parent becomes y (even if x is null, we remember parent)
+                xParent = y;
+                if (x != null) x.parent = y;
             } else {
-                fixDelete(x, x.parent);
+                // move y's right child up
+                rbTransplant(y, y.right);
+                xParent = y.parent;
+                y.right = z.right;
+                if (y.right != null) y.right.parent = y;
             }
+            rbTransplant(z, y);
+            y.left = z.left;
+            if (y.left != null) y.left.parent = y;
+            y.isRed = z.isRed; // preserve original color of z
+        }
+
+        // If a black node was removed, fix double-black property
+        if (!yOriginalIsRed) {
+            rbDeleteFixup(x, xParent);
         }
     }
 
-    // Helper to find the smallest node in the right subtree
-    private Node getSuccessor(Node node) {
-        while (node.left != null) {
-            node = node.left;
-        }
-        return node;
-    }
 
-    // x is the node that moved up (or null), parent is its parent
-    private void fixDelete(Node x, Node parent) {
-        Node sibling;
-
-        // While x is not root and x is BLACK (Double Black situation)
-        while (x != root && (x == null || !x.isRed)) {
-            
-            // --- SIDE A: x is a LEFT child ---
-            if (x == parent.left) {
-                sibling = parent.right;
-
-                // Case 1: Sibling is RED
-                // Strategy: Rotate parent left to make sibling black, then continue
-                if (sibling != null && sibling.isRed) {
-                    sibling.isRed = false;
+    private void rbDeleteFixup(Node x, Node parent) {
+        // While x is not root and x is black (x==null treated as black)
+        while ((x != root) && (x == null || !x.isRed)) {
+            // Determine whether x is a left child of parent
+            if (parent != null && x == parent.left) {
+                Node w = parent.right; // sibling
+                // Case 1: sibling is red
+                if (w != null && w.isRed) {
+                    w.isRed = false;
                     parent.isRed = true;
                     leftRotate(parent);
-                    sibling = parent.right; // New sibling after rotation
+                    w = parent.right;
                 }
 
-                // Case 2: Sibling's children are both BLACK (or null)
-                // Strategy: Remove black from sibling (make it Red) and push issue up to parent
-                if (sibling == null || 
-                ((sibling.left == null || !sibling.left.isRed) && 
-                    (sibling.right == null || !sibling.right.isRed))) {
-                    
-                    if (sibling != null) sibling.isRed = true;
-                    x = parent;          // Move up
-                    parent = x.parent;   // Update parent ref
-                } 
-                else {
-                    // Case 3: Sibling's Left Child is RED (Right Child is Black)
-                    // Strategy: Rotate sibling right to become Case 4
-                    if (sibling.right == null || !sibling.right.isRed) {
-                        if (sibling.left != null) sibling.left.isRed = false;
-                        sibling.isRed = true;
-                        rightRotate(sibling);
-                        sibling = parent.right;
-                    }
-
-                    // Case 4: Sibling's Right Child is RED
-                    // Strategy: Rotate parent left, swap colors, done.
-                    sibling.isRed = parent.isRed;
-                    parent.isRed = false;
-                    if (sibling.right != null) sibling.right.isRed = false;
-                    leftRotate(parent);
-                    x = root; // Terminate loop
-                }
-            } 
-            
-            // --- SIDE B: x is a RIGHT child --- (Mirror of Side A)
-            else {
-                sibling = parent.left;
-
-                // Case 1: Sibling is RED
-                if (sibling != null && sibling.isRed) {
-                    sibling.isRed = false;
-                    parent.isRed = true;
-                    rightRotate(parent);
-                    sibling = parent.left;
-                }
-
-                // Case 2: Sibling's children are both BLACK
-                if (sibling == null || 
-                ((sibling.left == null || !sibling.left.isRed) && 
-                    (sibling.right == null || !sibling.right.isRed))) {
-                    
-                    if (sibling != null) sibling.isRed = true;
+                // Case 2: sibling is black and both children black
+                if (w == null ||
+                ((w.left == null || !w.left.isRed) && (w.right == null || !w.right.isRed))) {
+                    if (w != null) w.isRed = true;
                     x = parent;
                     parent = x.parent;
-                } 
-                else {
-                    // Case 3: Sibling's Right Child is RED
-                    if (sibling.left == null || !sibling.left.isRed) {
-                        if (sibling.right != null) sibling.right.isRed = false;
-                        sibling.isRed = true;
-                        leftRotate(sibling);
-                        sibling = parent.left;
+                } else {
+                    // Case 3: sibling black, left red, right black
+                    if (w.right == null || !w.right.isRed) {
+                        if (w.left != null) w.left.isRed = false;
+                        w.isRed = true;
+                        rightRotate(w);
+                        w = parent.right;
                     }
-
-                    // Case 4: Sibling's Left Child is RED
-                    sibling.isRed = parent.isRed;
-                    parent.isRed = false;
-                    if (sibling.left != null) sibling.left.isRed = false;
+                    // Case 4: sibling black, right red
+                    if (w != null) {
+                        w.isRed = parent.isRed;
+                        parent.isRed = false;
+                        if (w.right != null) w.right.isRed = false;
+                    }
+                    leftRotate(parent);
+                    x = root;
+                    parent = null;
+                }
+            } else {
+                // x is right child or parent is null — mirror image
+                if (parent == null) {
+                    // No parent (shouldn't usually happen) — break defensively
+                    break;
+                }
+                Node w = parent.left;
+                // Case 1 mirror: sibling is red
+                if (w != null && w.isRed) {
+                    w.isRed = false;
+                    parent.isRed = true;
                     rightRotate(parent);
-                    x = root; // Terminate loop
+                    w = parent.left;
+                }
+
+                // Case 2 mirror: sibling's children both black
+                if (w == null ||
+                ((w.left == null || !w.left.isRed) && (w.right == null || !w.right.isRed))) {
+                    if (w != null) w.isRed = true;
+                    x = parent;
+                    parent = x.parent;
+                } else {
+                    // Case 3 mirror: sibling left black, right red -> rotate sibling
+                    if (w.left == null || !w.left.isRed) {
+                        if (w.right != null) w.right.isRed = false;
+                        w.isRed = true;
+                        leftRotate(w);
+                        w = parent.left;
+                    }
+                    // Case 4 mirror: sibling left red
+                    if (w != null) {
+                        w.isRed = parent.isRed;
+                        parent.isRed = false;
+                        if (w.left != null) w.left.isRed = false;
+                    }
+                    rightRotate(parent);
+                    x = root;
+                    parent = null;
                 }
             }
         }

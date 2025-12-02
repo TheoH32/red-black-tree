@@ -37,6 +37,7 @@ public class WebServer {
         server.createContext("/nodes", new NodesHandler());
         server.createContext("/count", new CountHandler());
         server.createContext("/tree.json", new TreeHandler());
+        server.createContext("/search", new SearchHandler()); // newly added
         server.createContext("/", new StaticHandler());
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
@@ -78,6 +79,7 @@ public class WebServer {
                 return;
             }
 
+            long start = System.nanoTime();
             // synchronize to avoid concurrent modifications
             synchronized (tree) {
                 tree.insert(value);
@@ -88,6 +90,8 @@ public class WebServer {
                     System.err.println("Warning: could not write visualization file: " + e.getMessage());
                 }
             }
+            long serverMs = (System.nanoTime() - start) / 1_000_000L;
+            exchange.getResponseHeaders().set("X-Server-Time-Ms", Long.toString(serverMs));
 
             String json = TreeSerializer.toJson(tree.root);
             sendJson(exchange, 200, json);
@@ -102,7 +106,7 @@ public class WebServer {
                 sendText(exchange, 405, "Method Not Allowed");
                 return;
             }
-            // write null to visualization file
+            // write null to visualization file (note: this does not reset in-memory tree; use DELETEs for full reset)
             try {
                 TreeSerializer.saveTreeToJson(null, "visualization/tree_data.json");
             } catch (IOException e) {
@@ -186,6 +190,7 @@ public class WebServer {
                 return;
             }
 
+            long start = System.nanoTime();
             synchronized (tree) {
                 tree.delete(value);
                 try {
@@ -194,12 +199,62 @@ public class WebServer {
                     System.err.println("Warning: could not write visualization file: " + e.getMessage());
                 }
             }
+            long serverMs = (System.nanoTime() - start) / 1_000_000L;
+            exchange.getResponseHeaders().set("X-Server-Time-Ms", Long.toString(serverMs));
 
             String json = TreeSerializer.toJson(tree.root);
             sendJson(exchange, 200, json);
         }
-    }  
-    
+    }
+
+    // New: Search handler to check presence of a value and report server-side time.
+    // GET /search?value=42
+    class SearchHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod()) && !"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendText(exchange, 405, "Method Not Allowed");
+                return;
+            }
+            URI uri = exchange.getRequestURI();
+            String q = uri.getRawQuery();
+            Integer value = null;
+            if (q != null) {
+                for (String part : q.split("&")) {
+                    String[] kv = part.split("=");
+                    if (kv.length == 2 && "value".equals(kv[0])) {
+                        try { value = Integer.parseInt(kv[1]); } catch (NumberFormatException ignored) {}
+                    }
+                }
+            }
+            if (value == null) {
+                // try reading body as plain number
+                try (InputStream is = exchange.getRequestBody()) {
+                    String body = new String(is.readAllBytes()).trim();
+                    if (!body.isEmpty()) {
+                        value = Integer.parseInt(body);
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (value == null) {
+                sendText(exchange, 400, "Missing or invalid 'value' parameter");
+                return;
+            }
+
+            boolean found;
+            long start = System.nanoTime();
+            synchronized (tree) {
+                found = (tree.search(value) != null);
+            }
+            long serverMs = (System.nanoTime() - start) / 1_000_000L;
+            exchange.getResponseHeaders().set("X-Server-Time-Ms", Long.toString(serverMs));
+
+            String json = "{\"found\": " + found + "}";
+            sendJson(exchange, 200, json);
+        }
+    }
+
     // Handler to return an array of all node values: GET /nodes
     class NodesHandler implements HttpHandler {
         @Override
