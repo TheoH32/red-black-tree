@@ -19,3 +19,18 @@ To run the unit tests, execute:
 ```bash
 mvn test
 ```
+# Deliverables:
+- Source code of the Red-Black Tree implementation.
+WHERE: well here
+
+- Test suite demonstrating the correctness of the implementation.
+WHERE:
+src/test/java/com/rbtree/RedBlackTreePropertiesTest.java
+run 'mvn test' to see
+
+Performance analysis report, including time complexity measurements and comparisons with other data structures.
+1. run local server
+2. press "Run Performance Analysis" button
+
+Documentation covering implementation details and optimizations.
+code is documented
