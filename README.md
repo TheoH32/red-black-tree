@@ -9,7 +9,7 @@
     ```bash
     java -cp target/classes com.rbtree.Main
     ```
-    This will start a local server on port 8000.
+    This will start a local server on port 8080.
 3. **Open Browser and Test**
     Open your web browser and navigate to `http://localhost:8080/` to view the visualization.
     
