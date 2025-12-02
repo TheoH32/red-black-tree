@@ -49,7 +49,7 @@ button.small { padding: 6px 10px; font-size: 12px; }
 /* notes */
 .notes { font-size: 13px; background: #f8f9fb; padding: 8px; border-radius: 6px; color: #222; }
 
-/* small tweaks */
+/* small tweak */
 .perf-actions { margin-top: 8px; display:flex; gap:8px; align-items:center; }
 
 /* Log box styles */
