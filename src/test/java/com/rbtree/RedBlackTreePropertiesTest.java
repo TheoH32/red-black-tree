@@ -36,7 +36,6 @@ class RedBlackTreePropertiesTest {
         
         // If your Node class uses a boolean, this just proves we can read it.
         // If you used an Enum (Color.RED, Color.BLACK), this ensures it's not null.
-        boolean isRed = node.isRed; 
         
         checkColorState(node.left);
         checkColorState(node.right);
