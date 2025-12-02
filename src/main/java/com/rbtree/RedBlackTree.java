@@ -1,5 +1,7 @@
 package com.rbtree;
 
+import java.util.ArrayList;
+import java.util.List;
 // SOURCE: https://www.geeksforgeeks.org/dsa/introduction-to-red-black-tree/
 // ALL COMMENTS ARE PASTED AND SOURCED FROM HERE ^^^^^^^^^^^^
 
@@ -271,96 +273,115 @@ public class RedBlackTree {
         return node;
     }
 
-// x is the node that moved up (or null), parent is its parent
-private void fixDelete(Node x, Node parent) {
-    Node sibling;
+    // x is the node that moved up (or null), parent is its parent
+    private void fixDelete(Node x, Node parent) {
+        Node sibling;
 
-    // While x is not root and x is BLACK (Double Black situation)
-    while (x != root && (x == null || !x.isRed)) {
-        
-        // --- SIDE A: x is a LEFT child ---
-        if (x == parent.left) {
-            sibling = parent.right;
+        // While x is not root and x is BLACK (Double Black situation)
+        while (x != root && (x == null || !x.isRed)) {
+            
+            // --- SIDE A: x is a LEFT child ---
+            if (x == parent.left) {
+                sibling = parent.right;
 
-            // Case 1: Sibling is RED
-            // Strategy: Rotate parent left to make sibling black, then continue
-            if (sibling != null && sibling.isRed) {
-                sibling.isRed = false;
-                parent.isRed = true;
-                leftRotate(parent);
-                sibling = parent.right; // New sibling after rotation
-            }
-
-            // Case 2: Sibling's children are both BLACK (or null)
-            // Strategy: Remove black from sibling (make it Red) and push issue up to parent
-            if (sibling == null || 
-               ((sibling.left == null || !sibling.left.isRed) && 
-                (sibling.right == null || !sibling.right.isRed))) {
-                
-                if (sibling != null) sibling.isRed = true;
-                x = parent;          // Move up
-                parent = x.parent;   // Update parent ref
-            } 
-            else {
-                // Case 3: Sibling's Left Child is RED (Right Child is Black)
-                // Strategy: Rotate sibling right to become Case 4
-                if (sibling.right == null || !sibling.right.isRed) {
-                    if (sibling.left != null) sibling.left.isRed = false;
-                    sibling.isRed = true;
-                    rightRotate(sibling);
-                    sibling = parent.right;
+                // Case 1: Sibling is RED
+                // Strategy: Rotate parent left to make sibling black, then continue
+                if (sibling != null && sibling.isRed) {
+                    sibling.isRed = false;
+                    parent.isRed = true;
+                    leftRotate(parent);
+                    sibling = parent.right; // New sibling after rotation
                 }
 
-                // Case 4: Sibling's Right Child is RED
-                // Strategy: Rotate parent left, swap colors, done.
-                sibling.isRed = parent.isRed;
-                parent.isRed = false;
-                if (sibling.right != null) sibling.right.isRed = false;
-                leftRotate(parent);
-                x = root; // Terminate loop
-            }
-        } 
-        
-        // --- SIDE B: x is a RIGHT child --- (Mirror of Side A)
-        else {
-            sibling = parent.left;
+                // Case 2: Sibling's children are both BLACK (or null)
+                // Strategy: Remove black from sibling (make it Red) and push issue up to parent
+                if (sibling == null || 
+                ((sibling.left == null || !sibling.left.isRed) && 
+                    (sibling.right == null || !sibling.right.isRed))) {
+                    
+                    if (sibling != null) sibling.isRed = true;
+                    x = parent;          // Move up
+                    parent = x.parent;   // Update parent ref
+                } 
+                else {
+                    // Case 3: Sibling's Left Child is RED (Right Child is Black)
+                    // Strategy: Rotate sibling right to become Case 4
+                    if (sibling.right == null || !sibling.right.isRed) {
+                        if (sibling.left != null) sibling.left.isRed = false;
+                        sibling.isRed = true;
+                        rightRotate(sibling);
+                        sibling = parent.right;
+                    }
 
-            // Case 1: Sibling is RED
-            if (sibling != null && sibling.isRed) {
-                sibling.isRed = false;
-                parent.isRed = true;
-                rightRotate(parent);
-                sibling = parent.left;
-            }
-
-            // Case 2: Sibling's children are both BLACK
-            if (sibling == null || 
-               ((sibling.left == null || !sibling.left.isRed) && 
-                (sibling.right == null || !sibling.right.isRed))) {
-                
-                if (sibling != null) sibling.isRed = true;
-                x = parent;
-                parent = x.parent;
-            } 
-            else {
-                // Case 3: Sibling's Right Child is RED
-                if (sibling.left == null || !sibling.left.isRed) {
+                    // Case 4: Sibling's Right Child is RED
+                    // Strategy: Rotate parent left, swap colors, done.
+                    sibling.isRed = parent.isRed;
+                    parent.isRed = false;
                     if (sibling.right != null) sibling.right.isRed = false;
-                    sibling.isRed = true;
-                    leftRotate(sibling);
+                    leftRotate(parent);
+                    x = root; // Terminate loop
+                }
+            } 
+            
+            // --- SIDE B: x is a RIGHT child --- (Mirror of Side A)
+            else {
+                sibling = parent.left;
+
+                // Case 1: Sibling is RED
+                if (sibling != null && sibling.isRed) {
+                    sibling.isRed = false;
+                    parent.isRed = true;
+                    rightRotate(parent);
                     sibling = parent.left;
                 }
 
-                // Case 4: Sibling's Left Child is RED
-                sibling.isRed = parent.isRed;
-                parent.isRed = false;
-                if (sibling.left != null) sibling.left.isRed = false;
-                rightRotate(parent);
-                x = root; // Terminate loop
+                // Case 2: Sibling's children are both BLACK
+                if (sibling == null || 
+                ((sibling.left == null || !sibling.left.isRed) && 
+                    (sibling.right == null || !sibling.right.isRed))) {
+                    
+                    if (sibling != null) sibling.isRed = true;
+                    x = parent;
+                    parent = x.parent;
+                } 
+                else {
+                    // Case 3: Sibling's Right Child is RED
+                    if (sibling.left == null || !sibling.left.isRed) {
+                        if (sibling.right != null) sibling.right.isRed = false;
+                        sibling.isRed = true;
+                        leftRotate(sibling);
+                        sibling = parent.left;
+                    }
+
+                    // Case 4: Sibling's Left Child is RED
+                    sibling.isRed = parent.isRed;
+                    parent.isRed = false;
+                    if (sibling.left != null) sibling.left.isRed = false;
+                    rightRotate(parent);
+                    x = root; // Terminate loop
+                }
             }
         }
+
+        if (x != null) x.isRed = false;
     }
 
-    if (x != null) x.isRed = false;
-}
+    // Returns a list of all node values (preorder). Synchronized to be safe with WebServer access.
+    public synchronized List<Integer> getAllValues() {
+        List<Integer> out = new ArrayList<>();
+        collectValues(root, out);
+        return out;
+    }
+
+    private void collectValues(Node node, List<Integer> out) {
+        if (node == null) return;
+        out.add(node.data);
+        collectValues(node.left, out);
+        collectValues(node.right, out);
+    }
+
+    // Returns the number of nodes in the tree
+    public synchronized int getNodeCount() {
+        return getAllValues().size();
+    }
 }

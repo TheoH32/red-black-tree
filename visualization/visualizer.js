@@ -25,37 +25,25 @@ document.getElementById('deleteBtn').addEventListener('click', () => {
         .catch(err => console.error("Delete failed:", err));
 });
 
-document.getElementById('deleteAllBtn').addEventListener('click', () => {
-    // Delete All -> reuse /clear endpoint
-    fetch('/clear', { method: 'POST' })
-        .then(res => {
-            if (!res.ok) return Promise.reject('Delete All failed: ' + res.status);
-            return res.text();
-        })
-        .then(() => fetchAndDraw())
-        .catch(err => console.error("Delete All failed:", err));
+document.getElementById('deleteAllBtn').addEventListener('click', async () => {
+    try {
+        const res = await fetch('/nodes');
+        if (!res.ok) throw new Error('Failed to fetch node list: ' + res.status);
+        const nodes = await res.json(); // expecting an array of ints
+        // Delete nodes sequentially to avoid concurrency issues in deletion logic
+        for (const v of nodes) {
+            const delRes = await fetch('/delete?value=' + encodeURIComponent(v), { method: 'POST' });
+            if (!delRes.ok) {
+                console.warn('Failed to delete value', v, 'status', delRes.status);
+            }
+        }
+        // After all deletes, refresh the view
+        fetchAndDraw();
+    } catch (err) {
+        console.error("Delete All failed:", err);
+    }
 });
 
-document.getElementById('clearBtn').addEventListener('click', () => {
-    fetch('/clear', { method: 'POST' })
-        .then(() => fetchAndDraw())
-        .catch(err => console.error("Clear failed:", err));
-});
-
-document.getElementById('refreshBtn').addEventListener('click', fetchAndDraw);
-
-function fetchAndDraw() {
-    // Request current tree JSON from server
-    fetch('/tree.json?t=' + new Date().getTime())
-        .then(res => res.text())
-        .then(text => {
-            let data = null;
-            try { data = JSON.parse(text); } catch (e) { /* JSON.parse(null) -> null; other errors will be caught */ }
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (data) drawNode(data, canvas.width / 2, 50, canvas.width / 4);
-        })
-        .catch(err => console.error("Error loading tree data:", err));
-}
 
 function drawNode(node, x, y, offset) {
     if (!node) return;

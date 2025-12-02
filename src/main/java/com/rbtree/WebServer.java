@@ -1,15 +1,17 @@
 package com.rbtree;
 
-import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * Very small embedded HTTP server to (1) serve files in visualization/,
@@ -31,7 +33,9 @@ public class WebServer {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/insert", new InsertHandler());
         server.createContext("/clear", new ClearHandler());
-        server.createContext("/delete", new DeleteHandler());
+        server.createContext("/delete", new DeleteHandler()); // if not already present
+        server.createContext("/nodes", new NodesHandler());
+        server.createContext("/count", new CountHandler());
         server.createContext("/tree.json", new TreeHandler());
         server.createContext("/", new StaticHandler());
         server.setExecutor(Executors.newCachedThreadPool());
@@ -194,7 +198,48 @@ public class WebServer {
             String json = TreeSerializer.toJson(tree.root);
             sendJson(exchange, 200, json);
         }
-    }   
+    }  
+    
+    // Handler to return an array of all node values: GET /nodes
+    class NodesHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendText(exchange, 405, "Method Not Allowed");
+                return;
+            }
+            String json;
+            synchronized (tree) {
+                java.util.List<Integer> nodes = tree.getAllValues();
+                StringBuilder sb = new StringBuilder();
+                sb.append("[");
+                for (int i = 0; i < nodes.size(); i++) {
+                    if (i > 0) sb.append(",");
+                    sb.append(nodes.get(i));
+                }
+                sb.append("]");
+                json = sb.toString();
+            }
+            sendJson(exchange, 200, json);
+        }
+    }
+
+    // Handler to return node count: GET /count
+    class CountHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendText(exchange, 405, "Method Not Allowed");
+                return;
+            }
+            int count;
+            synchronized (tree) {
+                count = tree.getNodeCount();
+            }
+            String json = "{\"count\": " + count + "}";
+            sendJson(exchange, 200, json);
+        }
+    }
 
     private void sendText(HttpExchange exchange, int code, String body) throws IOException {
         byte[] bytes = body.getBytes();
