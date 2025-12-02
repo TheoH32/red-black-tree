@@ -175,18 +175,22 @@ public class RedBlackTree {
 
 
     public Node search(int key) {
-        return searchRecursive(root, key);
+        Node x = root;
+        while (x != null && x != null) { // use NIL if you use a sentinel; otherwise check null
+            int cmp = Integer.compare(key, x.data);
+            if (cmp == 0) return x;
+            x = (cmp < 0) ? x.left : x.right;
+        }
+        return null;
     }
 
-    private Node searchRecursive(Node current, int key) {
-        if (current == null || current.data == key) {
-            return current;
-        }
-        if (key < current.data) {
-            return searchRecursive(current.left, key);
-        }
-        return searchRecursive(current.right, key);
+    /** Convenience that returns the value or null. */
+    public Integer get(int key) {
+        Node n = search(key);
+        return n == null ? null : n.data;
     }
+
+
 
     public void delete(int data) {
         Node node = search(data);

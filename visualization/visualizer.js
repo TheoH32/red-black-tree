@@ -1,6 +1,22 @@
 const canvas = document.getElementById('treeCanvas');
 const ctx = canvas.getContext('2d');
 
+let searchTarget = null; // integer or null
+
+// add/restore this function near the top of visualizer.js
+function fetchAndDraw() {
+    // Request current tree JSON from server (cache-buster)
+    fetch('/tree.json?t=' + new Date().getTime())
+        .then(res => res.text())
+        .then(text => {
+            let data = null;
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (data) drawNode(data, canvas.width / 2, 50, canvas.width / 4);
+        })
+        .catch(err => console.error("Error loading tree data:", err));
+}
+
 document.getElementById('insertBtn').addEventListener('click', () => {
     const val = document.getElementById('insertInput').value;
     if (val === '') return;
@@ -21,7 +37,13 @@ document.getElementById('deleteBtn').addEventListener('click', () => {
             if (!res.ok) return Promise.reject('Delete failed: ' + res.status);
             return res.json();
         })
-        .then(() => fetchAndDraw())
+        .then(() => {
+            // if deleted node was the highlighted one, clear highlight
+            if (searchTarget !== null && parseInt(val, 10) === searchTarget) {
+                searchTarget = null;
+            }
+            fetchAndDraw();
+        })
         .catch(err => console.error("Delete failed:", err));
 });
 
@@ -37,13 +59,32 @@ document.getElementById('deleteAllBtn').addEventListener('click', async () => {
                 console.warn('Failed to delete value', v, 'status', delRes.status);
             }
         }
-        // After all deletes, refresh the view
+        // After all deletes, refresh the view and clear search
+        searchTarget = null;
         fetchAndDraw();
     } catch (err) {
         console.error("Delete All failed:", err);
     }
 });
 
+// Search functionality
+document.getElementById('searchBtn').addEventListener('click', () => {
+    const val = document.getElementById('searchInput').value;
+    if (val === '') return;
+    searchTarget = parseInt(val, 10);
+    fetchAndDraw();
+});
+document.getElementById('clearSearchBtn').addEventListener('click', () => {
+    searchTarget = null;
+    document.getElementById('searchInput').value = '';
+    fetchAndDraw();
+});
+// allow pressing Enter to search
+document.getElementById('searchInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        document.getElementById('searchBtn').click();
+    }
+});
 
 function drawNode(node, x, y, offset) {
     if (!node) return;
@@ -67,11 +108,27 @@ function drawNode(node, x, y, offset) {
         drawNode(node.right, x + offset, y + 60, offset / 2);
     }
 
+    // If this node matches the search target, draw a highlight ring behind the node
+    const isMatch = (searchTarget !== null) && (parseInt(node.data, 10) === searchTarget);
+    if (isMatch) {
+        ctx.beginPath();
+        ctx.arc(x, y, 26, 0, 2 * Math.PI); // slightly bigger than node circle
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#00cc66";
+        ctx.shadowColor = "rgba(0,204,102,0.4)";
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+        // reset shadow so other drawings aren't affected
+        ctx.shadowBlur = 0;
+    }
+
     // Draw Node Circle
     ctx.beginPath();
     ctx.arc(x, y, 20, 0, 2 * Math.PI);
     ctx.fillStyle = node.color === "RED" ? "#ff4444" : "#333";
     ctx.fill();
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     // Draw Text
